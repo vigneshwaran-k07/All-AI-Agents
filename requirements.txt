@@ -1,0 +1,17 @@
+langchain
+langgraph
+langchain-community
+langchain-core
+langchain-groq
+python-dotenv
+pydantic
+arxiv
+wikipedia
+faiss-cpu
+pypdf
+typesense
+langchain-openai
+
+pymupdf
+chroma
+langchain-google-genai
