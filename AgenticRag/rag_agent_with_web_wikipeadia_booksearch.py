@@ -33,13 +33,11 @@ llm = ChatOpenAI(
     temperature=0
 )
 
-# Setup embeddings for RAG
 embeddings = OpenAIEmbeddings(
      model="text-embedding-3-small",
     api_key=api_key
 )
 
-# Load and process PDF (do this once)
 def setup_vector_store():
     """Setup vector store from PDF documents"""
     if os.path.exists("vectordatas"):
@@ -70,14 +68,12 @@ def setup_vector_store():
 # Initialize vector store
 vector_store = setup_vector_store()
 
-# Setup other tools (external tools only, NOT RAG)
 tavily_tool = TavilySearch(api_key=tavily_api_key)
 arxiv_wrapper = ArxivAPIWrapper(top_k_results=2, doc_content_chars_max=200)
 arxiv_tool = ArxivQueryRun(api_wrapper=arxiv_wrapper, description="Query papers")
 wikipedia_wrapper = WikipediaAPIWrapper(top_k_results=2, doc_content_chars_max=200)
 wikipedia_tool = WikipediaQueryRun(api_wrapper=wikipedia_wrapper)
 
-# Only external tools - RAG is a node, not a tool
 tools = [tavily_tool, arxiv_tool, wikipedia_tool]
 llm_with_tools = llm.bind_tools(tools=tools)
 
@@ -90,7 +86,6 @@ class QuestionSchema(BaseModel):
     question: str
 
 
-# RAG Node - searches documents first
 def rag_node(state: AgentState) -> AgentState:
     """
     Search documents and try to answer from RAG.
@@ -102,18 +97,16 @@ def rag_node(state: AgentState) -> AgentState:
     print(f"🔍 RAG: Searching documents for: {user_question}")
     
     try:
-        # Search for relevant documents
         docs = vector_store.similarity_search(user_question, k=3)
         
         if not docs:
-            print("⚠️ RAG: No relevant documents found, routing to external tools...")
-            # Return a message indicating RAG couldn't help
+            print("RAG: No relevant documents found, routing to external tools...")
+         
             no_info_message = AIMessage(
                 content="[RAG_NO_INFO] No relevant information found in documents."
             )
             return {"messages": [no_info_message]}
         
-        # Format the context
         context = "\n\n".join([
             f"[Chunk {i+1}]\n{doc.page_content}" 
             for i, doc in enumerate(docs)
@@ -137,15 +130,15 @@ Answer:"""
         # Get RAG response
         response = llm.invoke([HumanMessage(content=rag_prompt)])
         
-        # Check if RAG found relevant info
+      
         if "[NO_RELEVANT_INFO]" in response.content:
-            print("⚠️ RAG: Context not relevant, routing to external tools...")
+            print(" RAG: Context not relevant, routing to external tools...")
             no_info_message = AIMessage(
                 content="[RAG_NO_INFO] Context not relevant to question."
             )
             return {"messages": [no_info_message]}
         
-        print("✅ RAG: Found relevant information in documents")
+        print("RAG: Found relevant information in documents")
         return {"messages": [response]}
         
     except Exception as e:
@@ -154,20 +147,18 @@ Answer:"""
         return {"messages": [error_message]}
 
 
-# Agent node - uses external tools
 def agent_node(state: AgentState) -> AgentState:
     """
     Agent that uses external tools (Tavily, ArXiv, Wikipedia)
     """
     messages = state["messages"]
     
-    print("🤖 Agent: Using external tools...")
+    print(" Agent: Using external tools...")
     
     response = llm_with_tools.invoke(messages)
     return {"messages": [response]}
 
 
-# Router - decides next step after RAG
 def route_after_rag(state: AgentState) -> Literal["agent", "end"]:
     """
     Check if RAG answered the question or if we need external tools
@@ -175,12 +166,10 @@ def route_after_rag(state: AgentState) -> Literal["agent", "end"]:
     messages = state["messages"]
     last_message = messages[-1].content
     
-    # If RAG couldn't answer, go to agent for external tools
     if "[RAG_NO_INFO]" in last_message or "[RAG_ERROR]" in last_message or "[NO_RELEVANT_INFO]" in last_message:
         print("→ Routing to Agent (external tools)")
         return "agent"
     
-    # RAG answered successfully, end
     print("→ RAG answered successfully, ending")
     return "end"
 
@@ -223,14 +212,14 @@ try:
     tool_png = graph.get_graph().draw_mermaid_png()
     with open("graphimage.png", "wb") as f:
         f.write(tool_png)
-    print("✅ Graph visualization saved to graphimage.png")
+    print(" Graph visualization saved to graphimage.png")
 except Exception as e:
     print("Error while creating image:", str(e))
 
 
 # Interactive chat loop
 print("\n" + "="*60)
-print("🤖 AI Assistant with RAG + External Tools")
+print(" AI Assistant with RAG + External Tools")
 print("="*60)
 print("Flow: RAG first → If no answer → External tools")
 print("Type 'exit' to quit\n")
@@ -244,12 +233,9 @@ while user_input.lower() != "exit":
             "messages": [HumanMessage(content=user_input)]
         })
         
-        # Get the final answer (filter out internal markers)
         final_answer = response["messages"][-1].content
         
-        # Clean up internal markers
         if "[RAG_NO_INFO]" in final_answer or "[RAG_ERROR]" in final_answer or "[NO_RELEVANT_INFO]" in final_answer:
-            # This shouldn't happen, but just in case
             final_answer = "I couldn't find information in the documents or external sources."
         
         print("\n" + "─"*60)
@@ -257,11 +243,11 @@ while user_input.lower() != "exit":
         print("─"*60 + "\n")
         
     except Exception as e:
-        print(f"\n❌ Error: {str(e)}\n")
+        print(f"\n Error: {str(e)}\n")
     
     user_input = input("You: ")
 
-print("\n👋 Chat ended. Goodbye!\n")
+print("\n Chat ended. Goodbye!\n")
 
 
 # FastAPI endpoint
@@ -272,13 +258,12 @@ def ask_ai(data: QuestionSchema):
             "messages": [HumanMessage(content=data.question)]
         })
         
-        # Get final answer
         answer = response["messages"][-1].content
         
-        # Clean up internal markers
         if "[RAG_NO_INFO]" in answer or "[RAG_ERROR]" in answer or "[NO_RELEVANT_INFO]" in answer:
             answer = "I couldn't find relevant information to answer your question."
         
         return {"answer": answer}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
